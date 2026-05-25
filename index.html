@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O Suspeito</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #111;
+  --border: #1e1e1e;
+  --red: #e63946;
+  --amber: #f4a261;
+  --green: #2a9d8f;
+  --text: #e8e8e0;
+  --muted: #444;
+  --accent: #e63946;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+/* scanlines */
+body::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  background: repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 4px);
+  pointer-events:none;
+  z-index:9999;
+}
+
+header {
+  width:100%;
+  padding:1.5rem 2rem 1rem;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:baseline;
+  gap:1.5rem;
+}
+header h1 {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(2.2rem,4vw,3.5rem);
+  letter-spacing:0.1em;
+  line-height:1;
+}
+header p {
+  font-size:0.6rem;
+  color:var(--muted);
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  line-height:1.7;
+}
+
+.main {
+  display:grid;
+  grid-template-columns:280px 1fr 280px;
+  gap:0;
+  width:100%;
+  max-width:1100px;
+  flex:1;
+  padding:2rem 1rem;
+  align-items:start;
+}
+
+/* ── PANELS ── */
+.panel { display:flex; flex-direction:column; gap:1.5rem; }
+.panel-left { padding-right:2rem; border-right:1px solid var(--border); }
+.panel-right { padding-left:2rem; border-left:1px solid var(--border); }
+
+.cat-block { display:flex; flex-direction:column; gap:0.5rem; }
+.cat-label {
+  font-size:0.55rem;
+  letter-spacing:0.25em;
+  text-transform:uppercase;
+  color:var(--muted);
+  border-left:2px solid var(--accent);
+  padding-left:0.5rem;
+}
+.options { display:flex; flex-wrap:wrap; gap:0.35rem; }
+.opt-btn {
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--muted);
+  font-family:'Space Mono',monospace;
+  font-size:0.6rem;
+  padding:0.3rem 0.65rem;
+  cursor:pointer;
+  letter-spacing:0.04em;
+  transition:all 0.15s;
+}
+.opt-btn:hover { border-color:#444; color:var(--text); }
+.opt-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* ── CENTER ── */
+.center {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:1.2rem;
+  padding:0 2rem;
+}
+
+/* ── AVATAR STAGE ── */
+.avatar-stage {
+  position:relative;
+  width:300px;
+  height:360px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+/* ground glow */
+.ground-glow {
+  position:absolute;
+  bottom:10px;
+  left:50%;
+  transform:translateX(-50%);
+  width:160px;
+  height:30px;
+  border-radius:50%;
+  background: radial-gradient(ellipse, rgba(230,57,70,0.0) 0%, transparent 70%);
+  transition: background 0.6s;
+  z-index:0;
+}
+
+/* The rotating wrapper */
+#spin-wrap {
+  position:relative;
+  z-index:1;
+  animation: spinY 8s linear infinite;
+  transform-style: preserve-3d;
+  width:240px;
+  height:320px;
+}
+
+@keyframes spinY {
+  0%   { transform: rotateY(0deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+#spin-wrap svg {
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+/* selection ring */
+.stage-ring {
+  position:absolute;
+  bottom:18px;
+  left:50%;
+  transform:translateX(-50%);
+  width:170px;
+  height:24px;
+  border-radius:50%;
+  border:1px solid var(--border);
+  z-index:0;
+}
+.stage-ring::before {
+  content:'';
+  position:absolute;
+  inset:-4px;
+  border-radius:50%;
+  border:1px dashed #222;
+  animation: ringRotate 12s linear infinite;
+}
+@keyframes ringRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* corner brackets */
+.corner { position:absolute; width:16px; height:16px; }
+.corner-tl { top:0; left:0; border-top:1px solid var(--accent); border-left:1px solid var(--accent); }
+.corner-tr { top:0; right:0; border-top:1px solid var(--accent); border-right:1px solid var(--accent); }
+.corner-bl { bottom:0; left:0; border-bottom:1px solid var(--accent); border-left:1px solid var(--accent); }
+.corner-br { bottom:0; right:0; border-bottom:1px solid var(--accent); border-right:1px solid var(--accent); }
+
+/* scan line that moves */
+.scan-line {
+  position:absolute;
+  left:0; right:0;
+  height:1px;
+  background: linear-gradient(90deg, transparent, rgba(230,57,70,0.4), transparent);
+  animation: scanMove 3s ease-in-out infinite;
+  pointer-events:none;
+  z-index:2;
+}
+@keyframes scanMove {
+  0%   { top:10%; opacity:0; }
+  10%  { opacity:1; }
+  90%  { opacity:1; }
+  100% { top:90%; opacity:0; }
+}
+
+/* ── METER ── */
+.meter-wrap { width:100%; }
+.meter-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  margin-bottom:0.35rem;
+}
+.meter-label { font-size:0.55rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--muted); }
+.meter-value {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:2rem;
+  line-height:1;
+  transition:color 0.4s;
+  color:var(--green);
+}
+.meter-bar-bg { height:4px; background:var(--border); width:100%; position:relative; }
+.meter-bar-fill {
+  height:100%;
+  width:0%;
+  background:var(--green);
+  transition:width 0.5s cubic-bezier(.4,0,.2,1), background 0.5s;
+}
+.meter-bar-fill::after {
+  content:'';
+  position:absolute;
+  right:-1px; top:-4px;
+  width:2px; height:12px;
+  background:inherit;
+}
+.meter-ticks { display:flex; justify-content:space-between; margin-top:0.25rem; }
+.meter-tick { font-size:0.48rem; color:#333; }
+
+/* ── REVEAL ── */
+#reveal-wrap {
+  width:100%;
+  opacity:0;
+  transform:translateY(6px);
+  transition:opacity 0.5s, transform 0.5s;
+  pointer-events:none;
+}
+#reveal-wrap.show { opacity:1; transform:none; pointer-events:all; }
+
+.reveal-box {
+  border:1px solid var(--accent);
+  padding:0.9rem 1rem;
+  background:rgba(230,57,70,0.04);
+}
+.reveal-box p { font-size:0.6rem; line-height:1.9; color:var(--text); font-style:italic; }
+.reveal-author { font-size:0.52rem; color:var(--accent); margin-top:0.5rem; letter-spacing:0.1em; text-transform:uppercase; }
+
+/* ── RIGHT PANEL ── */
+.log-header { font-size:0.55rem; letter-spacing:0.25em; text-transform:uppercase; color:var(--muted); border-left:2px solid var(--border); padding-left:0.5rem; }
+
+#log { display:flex; flex-direction:column; gap:0; min-height:100px; margin-top:0.5rem; }
+.log-entry {
+  font-size:0.58rem;
+  color:var(--muted);
+  padding:0.35rem 0;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  justify-content:space-between;
+  animation:fadeIn 0.25s ease;
+}
+.log-entry.up { color:var(--red); }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:none} }
+
+.weight-badge { font-size:0.5rem; opacity:0.7; }
+
+/* weight breakdown */
+.weight-breakdown { display:flex; flex-direction:column; gap:0.3rem; margin-top:0.3rem; }
+.wb-row { display:flex; align-items:center; gap:0.5rem; font-size:0.55rem; color:var(--muted); }
+.wb-bar-bg { flex:1; height:2px; background:var(--border); }
+.wb-bar-fill { height:100%; background:var(--red); transition:width 0.4s; }
+.wb-label { min-width:80px; }
+.wb-val { min-width:24px; text-align:right; font-size:0.5rem; }
+
+#reset-btn {
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--muted);
+  font-family:'Space Mono',monospace;
+  font-size:0.58rem;
+  padding:0.45rem 0.9rem;
+  cursor:pointer;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  transition:all 0.2s;
+  align-self:flex-start;
+  margin-top:0.5rem;
+}
+#reset-btn:hover { border-color:var(--text); color:var(--text); }
+
+footer {
+  width:100%;
+  border-top:1px solid var(--border);
+  padding:0.9rem 2rem;
+  display:flex;
+  justify-content:space-between;
+}
+footer span { font-size:0.5rem; color:#333; letter-spacing:0.1em; text-transform:uppercase; }
+
+/* high suspicion flicker */
+@keyframes flicker {
+  0%,100%{opacity:1} 93%{opacity:0.75} 94%{opacity:1} 97%{opacity:0.85} 98%{opacity:1}
+}
+body.high-sus { animation:flicker 4s infinite; }
+body.high-sus .ground-glow { background:radial-gradient(ellipse, rgba(230,57,70,0.35) 0%, transparent 70%) !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>O Suspeito</h1>
+  <p>Como se constrói um criminoso<br>antes de qualquer crime</p>
+</header>
+
+<div class="main">
+
+  <!-- ── LEFT PANEL ── -->
+  <div class="panel panel-left">
+
+    <div class="cat-block">
+      <div class="cat-label">// pele</div>
+      <div class="options">
+        <button class="opt-btn" data-cat="pele" data-val="clara"  data-w="0"  data-label="pele clara">clara</button>
+        <button class="opt-btn" data-cat="pele" data-val="parda"  data-w="25" data-label="pele parda">parda</button>
+        <button class="opt-btn" data-cat="pele" data-val="negra"  data-w="55" data-label="pele negra">negra</button>
+      </div>
+    </div>
+
+    <div class="cat-block">
+      <div class="cat-label">// cabelo</div>
+      <div class="options">
+        <button class="opt-btn" data-cat="cabelo" data-val="liso"   data-w="0"  data-label="cabelo liso">liso</button>
+        <button class="opt-btn" data-cat="cabelo" data-val="crespo" data-w="20" data-label="cabelo crespo">crespo / black</button>
+        <button class="opt-btn" data-cat="cabelo" data-val="careca" data-w="5"  data-label="careca">careca</button>
+      </div>
+    </div>
+
+    <div class="cat-block">
+      <div class="cat-label">// roupa</div>
+      <div class="options">
+        <button class="opt-btn" data-cat="roupa" data-val="social"  data-w="0"  data-label="roupa social">social</button>
+        <button class="opt-btn" data-cat="roupa" data-val="casual"  data-w="10" data-label="roupa casual">casual</button>
+        <button class="opt-btn" data-cat="roupa" data-val="moletom" data-w="30" data-label="moletom c/ capuz">moletom c/ capuz</button>
+        <button class="opt-btn" data-cat="roupa" data-val="regata"  data-w="20" data-label="regata + chinelo">regata + chinelo</button>
+      </div>
+    </div>
+
+    <div class="cat-block">
+      <div class="cat-label">// acessórios</div>
+      <div class="options">
+        <button class="opt-btn" data-cat="acessorio" data-val="nenhum"   data-w="0"  data-label="sem acessórios">nenhum</button>
+        <button class="opt-btn" data-cat="acessorio" data-val="bone"     data-w="15" data-label="boné aba-reta">boné aba-reta</button>
+        <button class="opt-btn" data-cat="acessorio" data-val="corrente" data-w="10" data-label="corrente">corrente</button>
+        <button class="opt-btn" data-cat="acessorio" data-val="mochila"  data-w="5"  data-label="mochila">mochila</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── CENTER ── -->
+  <div class="center">
+
+    <div class="avatar-stage">
+      <div class="corner corner-tl"></div>
+      <div class="corner corner-tr"></div>
+      <div class="corner corner-bl"></div>
+      <div class="corner corner-br"></div>
+      <div class="scan-line"></div>
+      <div class="stage-ring"></div>
+      <div class="ground-glow" id="ground-glow"></div>
+
+      <div id="spin-wrap">
+        <svg viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg" id="avatar-svg">
+          <defs>
+            <filter id="glow-red">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- ground shadow ellipse -->
+          <ellipse cx="110" cy="308" rx="52" ry="9" fill="rgba(0,0,0,0.5)" id="ground-ellipse"/>
+
+          <!-- ── LEGS ── -->
+          <g id="g-legs">
+            <polygon points="85,225 100,225 97,300 82,300" fill="#1a1a1a"/>
+            <polygon points="100,225 98,223 96,298 97,300" fill="#111"/>
+            <polygon points="120,225 135,225 138,300 123,300" fill="#1a1a1a"/>
+            <polygon points="120,225 122,223 124,298 123,300" fill="#111"/>
+          </g>
+
+          <!-- shoes -->
+          <g id="g-shoes">
+            <ellipse cx="89"  cy="301" rx="11" ry="4" fill="#111" id="shoe-l"/>
+            <ellipse cx="130" cy="301" rx="11" ry="4" fill="#0d0d0d" id="shoe-r"/>
+          </g>
+
+          <!-- ── TORSO ── -->
+          <g id="g-torso">
+            <polygon points="78,140 142,140 145,228 75,228" fill="#2a2a2a" id="torso-front"/>
+            <polygon points="142,140 152,150 155,234 145,228" fill="#1c1c1c" id="torso-side"/>
+            <polygon points="78,140 88,130 148,130 142,140" fill="#343434" id="torso-top"/>
+          </g>
+
+          <!-- ── ARMS ── -->
+          <g id="g-arms">
+            <polygon points="78,142 78,165 18,170 18,148"  fill="#2a2a2a" id="arm-l-front"/>
+            <polygon points="78,142 85,135 25,140 18,148"  fill="#333"    id="arm-l-top"/>
+            <polygon points="78,165 85,158 25,163 18,170"  fill="#1c1c1c" id="arm-l-bot"/>
+            <polygon points="142,142 142,165 202,170 202,148" fill="#2a2a2a" id="arm-r-front"/>
+            <polygon points="142,142 152,150 212,155 202,148" fill="#1c1c1c" id="arm-r-side"/>
+            <polygon points="142,165 152,158 212,162 202,170" fill="#111"    id="arm-r-bot"/>
+          </g>
+
+          <!-- hands -->
+          <g id="g-hands">
+            <ellipse cx="14"  cy="159" rx="8" ry="6" fill="#c9a87c" id="hand-l" transform="rotate(-10,14,159)"/>
+            <ellipse cx="206" cy="159" rx="8" ry="6" fill="#c9a87c" id="hand-r" transform="rotate(10,206,159)"/>
+          </g>
+
+          <!-- neck -->
+          <rect x="101" y="115" width="18" height="22" fill="#c9a87c" id="neck" rx="2"/>
+
+          <!-- ── CLOTHES overlay ── -->
+          <g id="g-clothes"></g>
+
+          <!-- ── ACCESSORIES ── -->
+          <g id="g-accessories"></g>
+
+          <!-- ── HEAD ── -->
+          <g id="g-head">
+            <ellipse cx="110" cy="90" rx="32" ry="36" fill="#c9a87c" id="head-base"/>
+            <path d="M138,78 Q148,90 145,110 Q138,124 128,118 Q136,106 140,90 Q142,82 138,78Z" fill="#b8936a" id="head-side"/>
+            <ellipse cx="79"  cy="92" rx="5" ry="7" fill="#c9a87c" id="ear-l"/>
+            <ellipse cx="141" cy="92" rx="5" ry="7" fill="#b8936a" id="ear-r"/>
+            <!-- hair layer -->
+            <g id="g-hair">
+              <ellipse cx="110" cy="60" rx="32" ry="16" fill="#1a1a1a" id="hair-top"/>
+              <rect x="79" y="55" width="62" height="14" fill="#1a1a1a" id="hair-sides" rx="3"/>
+            </g>
+            <path d="M95,78 Q103,75 105,78"  stroke="#7a5030" stroke-width="1.5" fill="none" id="brow-l"/>
+            <path d="M115,78 Q117,75 125,78" stroke="#7a5030" stroke-width="1.5" fill="none" id="brow-r"/>
+            <ellipse cx="100" cy="90" rx="5" ry="5.5" fill="#fff" id="eye-l-w"/>
+            <ellipse cx="100" cy="90" rx="3" ry="3.5"  fill="#1a0a00" id="eye-l"/>
+            <ellipse cx="120" cy="90" rx="5" ry="5.5" fill="#fff" id="eye-r-w"/>
+            <ellipse cx="120" cy="90" rx="3" ry="3.5"  fill="#1a0a00" id="eye-r"/>
+            <path d="M107,98 Q110,106 113,98" stroke="#9a7050" stroke-width="1.5" fill="none" id="nose"/>
+            <path d="M100,112 Q110,117 120,112" stroke="#9a7050" stroke-width="1.5" fill="none" id="mouth"/>
+          </g>
+
+          <!-- BONE / HAT layer (above head) -->
+          <g id="g-hat"></g>
+
+          <!-- CORRENTE layer -->
+          <g id="g-corrente"></g>
+
+          <!-- MOCHILA layer -->
+          <g id="g-mochila"></g>
+
+        </svg>
+      </div>
+    </div>
+
+    <!-- METER -->
+    <div class="meter-wrap">
+      <div class="meter-header">
+        <span class="meter-label">índice de suspeição</span>
+        <span class="meter-value" id="meter-num">0%</span>
+      </div>
+      <div class="meter-bar-bg">
+        <div class="meter-bar-fill" id="meter-fill"></div>
+      </div>
+      <div class="meter-ticks">
+        <span class="meter-tick">neutro</span>
+        <span class="meter-tick">suspeito</span>
+        <span class="meter-tick">ameaça</span>
+      </div>
+    </div>
+
+    <!-- REVEAL QUOTE -->
+    <div id="reveal-wrap">
+      <div class="reveal-box">
+        <p id="reveal-text"></p>
+        <div class="reveal-author" id="reveal-author"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="panel panel-right">
+
+    <div>
+      <div class="cat-block">
+        <div class="cat-label">// lugar</div>
+        <div class="options">
+          <button class="opt-btn" data-cat="lugar" data-val="nobre"   data-w="0"  data-label="bairro nobre">bairro nobre</button>
+          <button class="opt-btn" data-cat="lugar" data-val="centro"  data-w="15" data-label="centro da cidade">centro</button>
+          <button class="opt-btn" data-cat="lugar" data-val="favela"  data-w="45" data-label="favela / periferia">favela / periferia</button>
+          <button class="opt-btn" data-cat="lugar" data-val="esquina" data-w="35" data-label="esquina à noite">esquina à noite</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cat-block">
+        <div class="cat-label">// hora</div>
+        <div class="options">
+          <button class="opt-btn" data-cat="hora" data-val="dia"       data-w="0"  data-label="durante o dia">dia</button>
+          <button class="opt-btn" data-cat="hora" data-val="tarde"     data-w="5"  data-label="entardecer">entardecer</button>
+          <button class="opt-btn" data-cat="hora" data-val="madrugada" data-w="20" data-label="madrugada">madrugada</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cat-block">
+        <div class="cat-label">// comportamento</div>
+        <div class="options">
+          <button class="opt-btn" data-cat="comp" data-val="andando"  data-w="0"  data-label="andando normalmente">andando normalmente</button>
+          <button class="opt-btn" data-cat="comp" data-val="parado"   data-w="20" data-label="parado na calçada">parado na calçada</button>
+          <button class="opt-btn" data-cat="comp" data-val="olhando"  data-w="25" data-label="olhando para os lados">olhando p/ os lados</button>
+          <button class="opt-btn" data-cat="comp" data-val="correndo" data-w="30" data-label="correndo">correndo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- weight breakdown -->
+    <div>
+      <div class="log-header">// peso dos atributos</div>
+      <div class="weight-breakdown" id="wbreakdown">
+        <div class="wb-row" id="wb-pele"><span class="wb-label">pele</span><div class="wb-bar-bg"><div class="wb-bar-fill" style="width:0%"></div></div><span class="wb-val">—</span></div>
+        <div class="wb-row" id="wb-cabelo"><span class="wb-label">cabelo</span><div class="wb-bar-bg"><div class="wb-bar-fill" style="width:0%"></div></div><span class="wb-val">—</span></div>
+        <div class="wb-row" id="wb-roupa"><span class="wb-label">roupa</span><div class="wb-bar-bg"><div class="wb-bar-fill" style="width:0%"></div></div><span class="wb-val">—</span></div>
+        <div class="wb-row" id="wb-acessorio"><span class="wb-label">acessório</span><div class="wb-bar-bg"><div class="wb-bar-fill" style="width:0%"></div></div><span class="wb-val">—</span></div>
+        <div class="wb-row" id="wb-lugar"><span class="wb-label">lugar</span><div class="wb-bar-bg"><div class="wb-bar-fill" style="width:0%"></div></div><span class="wb-val">—</span></div>
+        <div class="wb-row" id="wb-hora"><span class="wb-label">hora</span><div class="wb-bar-bg"><div class="wb-bar-fill" style="width:0%"></div></div><span class="wb-val">—</span></div>
+        <div class="wb-row" id="wb-comp"><span class="wb-label">comportamento</span><div class="wb-bar-bg"><div class="wb-bar-fill" style="width:0%"></div></div><span class="wb-val">—</span></div>
+      </div>
+    </div>
+
+    <button id="reset-btn">↺ resetar</button>
+  </div>
+
+</div>
+
+<footer>
+  <span>Michel Misse · Ana Luiza Flauzina · Roberto Zaccone · Vera Malaguti</span>
+  <span>demo v0.3</span>
+</footer>
+
+<script>
+// ── STATE ──
+const state = { pele:null, cabelo:null, roupa:null, acessorio:null, lugar:null, hora:null, comp:null };
+
+const maxWeights = { pele:55, cabelo:20, roupa:30, acessorio:15, lugar:45, hora:20, comp:30 };
+
+// skin palettes
+const skins = {
+  clara: { base:'#e8c9a0', side:'#d4b08a', hand:'#e8c9a0', neck:'#e8c9a0', nose:'#c0906a', brow:'#8a6040' },
+  parda: { base:'#c9a87c', side:'#b8936a', hand:'#c9a87c', neck:'#c9a87c', nose:'#9a7050', brow:'#7a5030' },
+  negra: { base:'#5c3d2e', side:'#4a2e20', hand:'#5c3d2e', neck:'#5c3d2e', nose:'#3a2015', brow:'#2a1008' }
+};
+
+const quotes = [
+  { t:30, text:"A sujeição criminal não é apenas a suspeita de que alguém cometeu um crime, mas a atribuição a um sujeito de uma trajetória moral que o torna plausível como criminoso.", author:"Michel Misse" },
+  { t:55, text:"O corpo negro é, por si só, um território de guerra. A pele como elemento de suspeição dispensa o ato — antecipa a culpa.", author:"Ana Luiza Flauzina" },
+  { t:75, text:"Não se pune o que o sujeito fez. Pune-se o que ele é. A pobreza, a negritude, o território — estes são os verdadeiros crimes julgados.", author:"Roberto Zaccone" },
+  { t:90, text:"O extermínio do jovem negro brasileiro é política de Estado. Não é exceção — é regra. O suspeito foi construído para ser eliminado.", author:"Vera Malaguti Batista" }
+];
+
+// ── SKIN ──
+function applySkin(val) {
+  const c = skins[val] || skins.parda;
+  document.getElementById('head-base').setAttribute('fill', c.base);
+  document.getElementById('head-side').setAttribute('fill', c.side);
+  document.getElementById('ear-l').setAttribute('fill', c.base);
+  document.getElementById('ear-r').setAttribute('fill', c.side);
+  document.getElementById('neck').setAttribute('fill', c.neck);
+  document.getElementById('hand-l').setAttribute('fill', c.hand);
+  document.getElementById('hand-r').setAttribute('fill', c.hand);
+  document.getElementById('nose').setAttribute('stroke', c.nose);
+  document.getElementById('mouth').setAttribute('stroke', c.nose);
+  document.getElementById('brow-l').setAttribute('stroke', c.brow);
+  document.getElementById('brow-r').setAttribute('stroke', c.brow);
+}
+
+// ── HAIR ──
+// CORREÇÃO 1: trata val === null para reset correto
+function applyHair(val) {
+  const hairTop   = document.getElementById('hair-top');
+  const hairSides = document.getElementById('hair-sides');
+
+  // remove puffs antigos sempre que trocar cabelo
+  document.querySelectorAll('.hair-puff').forEach(e => e.remove());
+
+  // CORREÇÃO 1: val null volta ao padrão (liso escuro)
+  if (!val || val === 'liso') {
+    hairTop.setAttribute('fill','#1a1a1a');
+    hairSides.setAttribute('fill','#1a1a1a');
+    hairTop.setAttribute('rx','0');
+    hairTop.setAttribute('ry','16');
+    hairSides.setAttribute('height','14');
+  } else if (val === 'crespo') {
+    hairTop.setAttribute('fill','#1a1a1a');
+    hairSides.setAttribute('fill','#1a1a1a');
+    hairTop.setAttribute('ry','22');
+    hairSides.setAttribute('height','18');
+    const g = document.getElementById('g-hair');
+    const puffs = [[90,52,9],[110,46,10],[130,52,9],[80,60,7],[140,60,7]];
+    puffs.forEach(([cx,cy,r]) => {
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',r);
+      c.setAttribute('fill','#1a1a1a'); c.classList.add('hair-puff');
+      g.appendChild(c);
+    });
+  } else if (val === 'careca') {
+    hairTop.setAttribute('fill','transparent');
+    hairSides.setAttribute('fill','transparent');
+  }
+
+  // CORREÇÃO 3: se há boné ativo, esconde o cabelo para evitar sobreposição
+  if (state.acessorio === 'bone') {
+    hairTop.setAttribute('fill','transparent');
+    hairSides.setAttribute('fill','transparent');
+    document.querySelectorAll('.hair-puff').forEach(e => e.setAttribute('fill','transparent'));
+  }
+}
+
+// ── CLOTHES ──
+// CORREÇÃO 2: applyClothes(null) restaura visual padrão explicitamente
+function applyClothes(val) {
+  const gClothes = document.getElementById('g-clothes');
+  gClothes.innerHTML = '';
+
+  const tf  = document.getElementById('torso-front');
+  const ts  = document.getElementById('torso-side');
+  const tt  = document.getElementById('torso-top');
+  const alf = document.getElementById('arm-l-front');
+  const alt = document.getElementById('arm-l-top');
+  const alb = document.getElementById('arm-l-bot');
+  const arf = document.getElementById('arm-r-front');
+  const ars = document.getElementById('arm-r-side');
+  const arb = document.getElementById('arm-r-bot');
+
+  // CORREÇÃO 4: sempre restaura sapatos antes de aplicar roupa
+  document.getElementById('shoe-l').setAttribute('fill','#111');
+  document.getElementById('shoe-r').setAttribute('fill','#0d0d0d');
+
+  if (!val || val === 'default') {
+    // estado padrão explícito
+    tf.setAttribute('fill','#2a2a2a'); ts.setAttribute('fill','#1a1a1a'); tt.setAttribute('fill','#333');
+    alf.setAttribute('fill','#2a2a2a'); alt.setAttribute('fill','#333'); alb.setAttribute('fill','#1c1c1c');
+    arf.setAttribute('fill','#2a2a2a'); ars.setAttribute('fill','#1a1a1a'); arb.setAttribute('fill','#111');
+  } else if (val === 'social') {
+    tf.setAttribute('fill','#1c3a5e'); ts.setAttribute('fill','#122a48'); tt.setAttribute('fill','#254d7a');
+    alf.setAttribute('fill','#1c3a5e'); alt.setAttribute('fill','#254d7a'); alb.setAttribute('fill','#122a48');
+    arf.setAttribute('fill','#1c3a5e'); ars.setAttribute('fill','#122a48'); arb.setAttribute('fill','#0e2038');
+    gClothes.innerHTML = `
+      <polygon points="107,140 113,140 111,190 109,190" fill="#8b1a1a"/>
+      <polygon points="106,140 114,140 112,156 108,156" fill="#a02020"/>
+    `;
+  } else if (val === 'casual') {
+    tf.setAttribute('fill','#2d4a2d'); ts.setAttribute('fill','#1f361f'); tt.setAttribute('fill','#3a5e3a');
+    alf.setAttribute('fill','#2d4a2d'); alt.setAttribute('fill','#3a5e3a'); alb.setAttribute('fill','#1f361f');
+    arf.setAttribute('fill','#2d4a2d'); ars.setAttribute('fill','#1f361f'); arb.setAttribute('fill','#162616');
+  } else if (val === 'moletom') {
+    tf.setAttribute('fill','#181818'); ts.setAttribute('fill','#101010'); tt.setAttribute('fill','#222');
+    alf.setAttribute('fill','#181818'); alt.setAttribute('fill','#222'); alb.setAttribute('fill','#101010');
+    arf.setAttribute('fill','#181818'); ars.setAttribute('fill','#101010'); arb.setAttribute('fill','#080808');
+    gClothes.innerHTML = `
+      <path d="M78,140 Q74,105 110,88 Q146,105 142,140 Q126,128 110,126 Q94,128 78,140Z" fill="#181818" opacity="0.92"/>
+      <ellipse cx="110" cy="126" rx="18" ry="10" fill="#101010"/>
+    `;
+  } else if (val === 'regata') {
+    tf.setAttribute('fill','#888'); ts.setAttribute('fill','#666'); tt.setAttribute('fill','#999');
+    const skinC = skins[state.pele || 'parda'].hand;
+    alf.setAttribute('fill', skinC); alt.setAttribute('fill', skinC); alb.setAttribute('fill', skinC);
+    arf.setAttribute('fill', skinC); ars.setAttribute('fill', skinC); arb.setAttribute('fill', skinC);
+    // sapatos viram chinelo dourado
+    document.getElementById('shoe-l').setAttribute('fill','#d4a853');
+    document.getElementById('shoe-r').setAttribute('fill','#c49843');
+    gClothes.innerHTML = `
+      <line x1="84" y1="299" x2="94" y2="299" stroke="#a07830" stroke-width="2.5"/>
+      <line x1="126" y1="299" x2="136" y2="299" stroke="#a07830" stroke-width="2.5"/>
+    `;
+  }
+}
+
+// ── ACCESSORIES ──
+// CORREÇÃO 3: esconde o cabelo quando há boné; restaura quando remove
+function applyAccessory(val) {
+  document.getElementById('g-hat').innerHTML      = '';
+  document.getElementById('g-corrente').innerHTML = '';
+  document.getElementById('g-mochila').innerHTML  = '';
+
+  const hairTop   = document.getElementById('hair-top');
+  const hairSides = document.getElementById('hair-sides');
+
+  if (val === 'bone') {
+    // esconde cabelo para o boné não ficar por baixo de puffs
+    hairTop.setAttribute('fill','transparent');
+    hairSides.setAttribute('fill','transparent');
+    document.querySelectorAll('.hair-puff').forEach(e => e.setAttribute('fill','transparent'));
+
+    document.getElementById('g-hat').innerHTML = `
+      <ellipse cx="110" cy="65" rx="36" ry="10" fill="#1a1a1a"/>
+      <rect x="75" y="58" width="70" height="14" fill="#1a1a1a" rx="3"/>
+      <rect x="75" y="69" width="78" height="6" fill="#111" rx="1"/>
+      <ellipse cx="152" cy="72" rx="10" ry="3" fill="#0d0d0d"/>
+    `;
+  } else {
+    // restaura cabelo quando acessório não é boné
+    applyHair(state.cabelo);
+  }
+
+  if (val === 'corrente') {
+    document.getElementById('g-corrente').innerHTML = `
+      <path d="M92,138 Q110,148 128,138" stroke="#d4af37" stroke-width="2.5" fill="none"/>
+      <circle cx="110" cy="148" r="4" fill="#d4af37"/>
+    `;
+  } else if (val === 'mochila') {
+    document.getElementById('g-mochila').innerHTML = `
+      <rect x="145" y="135" width="22" height="55" fill="#333" rx="4"/>
+      <rect x="147" y="137" width="18" height="25" fill="#2a2a2a" rx="2"/>
+      <line x1="155" y1="135" x2="152" y2="228" stroke="#2a2a2a" stroke-width="3"/>
+    `;
+  }
+}
+
+// ── CALC ──
+function calcSuspicion() {
+  let total = 0, maxTotal = 0;
+  Object.keys(maxWeights).forEach(cat => {
+    maxTotal += maxWeights[cat];
+    if (state[cat]) {
+      const btn = document.querySelector(`.opt-btn[data-cat="${cat}"][data-val="${state[cat]}"]`);
+      if (btn) total += parseInt(btn.dataset.w);
+    }
+  });
+  return Math.min(100, Math.round((total / maxTotal) * 100));
+}
+
+// ── UPDATE METER ──
+function updateMeter(pct) {
+  const fill = document.getElementById('meter-fill');
+  const num  = document.getElementById('meter-num');
+
+  const color = pct < 30 ? 'var(--green)' : pct < 60 ? 'var(--amber)' : 'var(--red)';
+  fill.style.width      = pct + '%';
+  fill.style.background = color;
+  num.style.color       = color;
+  num.textContent       = pct + '%';
+
+  document.body.classList.toggle('high-sus', pct > 80);
+
+  const glow = document.getElementById('ground-glow');
+  if (pct > 50) {
+    const intensity = (pct - 50) / 50;
+    glow.style.background = `radial-gradient(ellipse, rgba(230,57,70,${intensity * 0.45}) 0%, transparent 70%)`;
+  } else {
+    glow.style.background = 'radial-gradient(ellipse, rgba(230,57,70,0) 0%, transparent 70%)';
+  }
+
+  const spinWrap = document.getElementById('spin-wrap');
+  const dur = Math.max(2, 8 - (pct / 100) * 5);
+  spinWrap.style.animationDuration = dur + 's';
+
+  if (pct > 65) {
+    document.getElementById('mouth').setAttribute('d','M100,114 Q110,111 120,114');
+    document.getElementById('eye-l').setAttribute('ry','2');
+    document.getElementById('eye-r').setAttribute('ry','2');
+    document.getElementById('brow-l').setAttribute('d','M95,76 Q103,80 105,77');
+    document.getElementById('brow-r').setAttribute('d','M115,77 Q117,80 125,76');
+  } else {
+    document.getElementById('mouth').setAttribute('d','M100,112 Q110,117 120,112');
+    document.getElementById('eye-l').setAttribute('ry','3.5');
+    document.getElementById('eye-r').setAttribute('ry','3.5');
+    document.getElementById('brow-l').setAttribute('d','M95,78 Q103,75 105,78');
+    document.getElementById('brow-r').setAttribute('d','M115,78 Q117,75 125,78');
+  }
+
+  // quote — CORREÇÃO 5: transição suave via classe (CSS já tem transition opacity)
+  const reveal = document.getElementById('reveal-wrap');
+  const q = [...quotes].reverse().find(q => pct >= q.t);
+  if (q) {
+    document.getElementById('reveal-text').textContent = '"' + q.text + '"';
+    document.getElementById('reveal-author').textContent = '— ' + q.author;
+    reveal.classList.add('show');
+  } else {
+    reveal.classList.remove('show');
+  }
+
+  // weight breakdown bars
+  const catNames = ['pele','cabelo','roupa','acessorio','lugar','hora','comp'];
+  catNames.forEach(cat => {
+    const row = document.getElementById('wb-' + cat);
+    if (!row) return;
+    const bar   = row.querySelector('.wb-bar-fill');
+    const valEl = row.querySelector('.wb-val');
+    if (state[cat]) {
+      const btn = document.querySelector(`.opt-btn[data-cat="${cat}"][data-val="${state[cat]}"]`);
+      const w   = btn ? parseInt(btn.dataset.w) : 0;
+      const max = maxWeights[cat];
+      bar.style.width     = (w / max * 100) + '%';
+      valEl.textContent   = w > 0 ? '+' + w : '0';
+    } else {
+      bar.style.width   = '0%';
+      valEl.textContent = '—';
+    }
+  });
+}
+
+// ── CLICKS ──
+document.querySelectorAll('.opt-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const cat = btn.dataset.cat;
+    const val = btn.dataset.val;
+
+    if (state[cat] === val) {
+      // toggle off
+      state[cat] = null;
+      btn.classList.remove('active');
+      // restaura visual ao deselecionar
+      if (cat === 'pele')      applySkin('parda');
+      if (cat === 'cabelo')    applyHair(null);
+      if (cat === 'roupa')     applyClothes(null);
+      if (cat === 'acessorio') applyAccessory(null);
+    } else {
+      state[cat] = val;
+      document.querySelectorAll(`.opt-btn[data-cat="${cat}"]`).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (cat === 'pele')      applySkin(val);
+      if (cat === 'cabelo')    applyHair(val);
+      if (cat === 'roupa')     applyClothes(val);
+      if (cat === 'acessorio') applyAccessory(val);
+    }
+
+    updateMeter(calcSuspicion());
+  });
+});
+
+// ── RESET ──
+// CORREÇÃO 4: restaura sapatos + CORREÇÃO 1: applyHair(null) agora funciona
+document.getElementById('reset-btn').addEventListener('click', () => {
+  Object.keys(state).forEach(k => state[k] = null);
+  document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('active'));
+
+  applySkin('parda');
+  applyHair(null);
+  applyClothes(null);
+  applyAccessory(null);
+
+  // restaura sapatos explicitamente (caso regata tenha mudado a cor)
+  document.getElementById('shoe-l').setAttribute('fill','#111');
+  document.getElementById('shoe-r').setAttribute('fill','#0d0d0d');
+
+  updateMeter(0);
+  document.getElementById('reveal-wrap').classList.remove('show');
+  document.body.classList.remove('high-sus');
+  document.getElementById('spin-wrap').style.animationDuration = '8s';
+  document.getElementById('ground-glow').style.background = '';
+});
+
+// init
+applySkin('parda');
+</script>
+</body>
+</html>
